@@ -56,7 +56,7 @@ def teacher_required(f):
 with open("topics.json", "r") as f:
     ALLOWED_TOPICS = json.load(f)
 
-SERP_API_KEY = "YOUR_API_KEY_HERE"
+SERP_API_KEY = os.environ.get("SERP_API_KEY")
 SERP_ENDPOINT = "https://serpapi.com/search.json"
 
 @app.before_request
