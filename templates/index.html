@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Science Image Search (Grades 7–10)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,10 +22,10 @@
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label class="block mb-1 font-semibold">Grade</label>
-          <select id="grade" onchange="updateKeywords()" class="w-full p-2 rounded text-black">
+          <select id="grade" class="w-full p-2 rounded text-black">
             <option value="">Select Grade</option>
             {% for grade in allowed_topics %}
-            <option value="{{ grade }}">{{ grade }}</option>
+              <option value="{{ grade }}">{{ grade }}</option>
             {% endfor %}
           </select>
         </div>
@@ -34,21 +34,19 @@
           <label class="block mb-1 font-semibold">Subject</label>
           <select id="subject" onchange="updateKeywords()" class="w-full p-2 rounded text-black">
             <option value="">Select Subject</option>
-            <option value="Physics">Physics</option>
-            <option value="Chemistry">Chemistry</option>
-            <option value="Biology">Biology</option>
           </select>
         </div>
 
         <div>
           <label class="block mb-1 font-semibold">Keyword</label>
-          <select id="prompt" class="w-full p-2 rounded text-black">
-            <option value="">Select Keyword</option>
-          </select>
+          <input list="keyword-list" id="prompt" class="w-full p-2 rounded text-black" placeholder="Start typing a keyword" />
+          <datalist id="keyword-list"></datalist>
         </div>
       </div>
 
-      <button onclick="fetchImage()" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 transition-all py-2 px-4 rounded-xl font-bold text-white shadow-md">🔍 Get Image</button>
+      <button onclick="fetchImage()" class="mt-6 w-auto max-w-xs bg-blue-600 hover:bg-blue-700 transition-all py-2 px-4 rounded-xl font-bold text-white shadow-md block mx-auto">
+        🔍 Get Image
+      </button>
     </div>
 
     <div id="result" class="text-center"></div>
@@ -58,54 +56,107 @@
     </footer>
   </div>
 
-  <script>
-    async function updateKeywords() {
-      const grade = document.getElementById("grade").value;
-      const subject = document.getElementById("subject").value;
-      const promptSelect = document.getElementById("prompt");
+<script>
+  const allowedTopics = {{ allowed_topics | tojson | safe }};
+  const subjectSelect = document.getElementById("subject");
 
-      if (!grade || !subject) {
-        promptSelect.innerHTML = "<option value=''>Select Keyword</option>";
-        return;
-      }
+  document.getElementById("grade").addEventListener("change", function () {
+    const selectedGrade = this.value;
+    const subjects = allowedTopics[selectedGrade] ? Object.keys(allowedTopics[selectedGrade]) : [];
 
-      const res = await fetch(`/get_keywords?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}`);
-      const data = await res.json();
+    subjectSelect.innerHTML = '<option value="">Select Subject</option>';
+    subjects.forEach(sub => {
+      const option = document.createElement("option");
+      option.value = sub;
+      option.textContent = sub;
+      subjectSelect.appendChild(option);
+    });
 
-      promptSelect.innerHTML = "<option value=''>Select Keyword</option>";
-      data.keywords.forEach(keyword => {
-        const opt = document.createElement("option");
-        opt.value = keyword;
-        opt.textContent = keyword;
-        promptSelect.appendChild(opt);
-      });
+    updateKeywords();
+  });
+
+  async function updateKeywords() {
+    const grade = document.getElementById("grade").value;
+    const subject = document.getElementById("subject").value;
+    const keywordList = document.getElementById("keyword-list");
+
+    if (!grade || !subject) {
+      keywordList.innerHTML = "";
+      return;
     }
 
-    async function fetchImage() {
-      const grade = document.getElementById("grade").value;
-      const subject = document.getElementById("subject").value;
-      const prompt = document.getElementById("prompt").value;
-      const resultDiv = document.getElementById("result");
+    const res = await fetch(`/get_keywords?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}`);
+    const data = await res.json();
 
-      if (!grade || !subject || !prompt) {
-        resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>⚠️ Please select all fields before searching.</div>`;
-        return;
-      }
+    keywordList.innerHTML = "";
+    data.keywords.forEach(keyword => {
+      const option = document.createElement("option");
+      option.value = keyword;
+      keywordList.appendChild(option);
+    });
+  }
 
-      resultDiv.innerHTML = "<div class='mt-4'>⏳ Searching...</div>";
+  async function fetchImage() {
+    const grade = document.getElementById("grade").value;
+    const subject = document.getElementById("subject").value;
+    const prompt = document.getElementById("prompt").value.trim();
+    const resultDiv = document.getElementById("result");
 
-      const res = await fetch(`/get_image/?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}&prompt=${encodeURIComponent(prompt)}`);
-      const data = await res.json();
-
-      if (data.image_url) {
-        resultDiv.innerHTML = `
-          <h3 class="text-xl font-semibold mt-6 mb-2">🖼️ ${data.title}</h3>
-          <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[500px]">
-        `;
-      } else {
-        resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
-      }
+    if (!grade || !subject || !prompt) {
+      resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>⚠️ Please select all fields before searching.</div>`;
+      return;
     }
-  </script>
+
+    resultDiv.innerHTML = "<div class='mt-4'>⏳ Searching...</div>";
+
+    const res = await fetch(`/get_image/?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}&prompt=${encodeURIComponent(prompt)}`);
+    const data = await res.json();
+
+    if (data.image_url) {
+      resultDiv.innerHTML = `
+        <h3 class="text-xl font-semibold mt-6 mb-2">🖼️ ${data.title}</h3>
+        <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[500px]">
+
+        <div class="mt-8">
+          <p class="text-lg font-semibold mb-2">🤔 Can't find what you're looking for?</p>
+          <div class="flex justify-center gap-2">
+            <input id="customSearch" type="text" placeholder="Enter custom search" class="p-2 rounded text-black w-64" />
+            <button onclick="fetchCustomImage()" class="bg-green-600 hover:bg-green-700 transition-all py-2 px-4 rounded-xl font-bold text-white">
+              🔎 Search
+            </button>
+          </div>
+        </div>
+      `;
+    } else {
+      resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
+    }
+
+    document.getElementById("prompt").value = "";
+  }
+
+  async function fetchCustomImage() {
+    const customPrompt = document.getElementById("customSearch").value.trim();
+    const resultDiv = document.getElementById("result");
+
+    if (!customPrompt) {
+      alert("Please enter a custom search query.");
+      return;
+    }
+
+    resultDiv.innerHTML = "<div class='mt-4'>⏳ Searching custom image...</div>";
+
+    const res = await fetch(`/get_image_custom?query=${encodeURIComponent(customPrompt)}`);
+    const data = await res.json();
+
+    if (data.image_url) {
+      resultDiv.innerHTML = `
+        <h3 class="text-xl font-semibold mt-6 mb-2">🖼️ ${data.title}</h3>
+        <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[500px]">
+      `;
+    } else {
+      resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
+    }
+  }
+</script>
 </body>
 </html>

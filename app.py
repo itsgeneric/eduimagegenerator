@@ -6,7 +6,7 @@ app = Flask(__name__)
 with open("topics.json", "r") as f:
     ALLOWED_TOPICS = json.load(f)
 
-SERP_API_KEY = "YOUR_API_KEY_HERE"
+SERP_API_KEY = "d824f700fc1d5c11f1580b9734410b46dd4dd46b2d7b2e730a2d612dbc6c7556"
 SERP_ENDPOINT = "https://serpapi.com/search.json"
 
 @app.route("/")
@@ -51,6 +51,33 @@ def get_image():
         })
     else:
         return jsonify({"error": "❌ No image found. Try a different valid keyword."})
+
+
+@app.route("/get_image_custom")
+def get_image_custom():
+    query = request.args.get("query", "").strip().lower()
+    if not query:
+        return jsonify({"error": "❌ No search query provided."})
+
+    search_term = f"{query} diagram"
+    params = {
+        "q": search_term,
+        "tbm": "isch",
+        "api_key": SERP_API_KEY
+    }
+
+    response = requests.get(SERP_ENDPOINT, params=params)
+    data = response.json()
+
+    images = data.get("images_results", [])
+    if images:
+        return jsonify({
+            "title": images[0].get("title", "Result"),
+            "image_url": images[0].get("original")
+        })
+    else:
+        return jsonify({"error": "❌ No image found. Try another search."})
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8000)
