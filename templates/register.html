@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white bg-opacity-10 p-8 rounded-2xl shadow-xl">
+  <h2 class="text-2xl font-bold mb-6 text-center">Register</h2>
+  <form method="POST">
+    <div class="mb-4">
+      <label class="block mb-2 font-semibold">Username</label>
+      <input type="text" name="username" required class="w-full p-2 rounded text-black">
+    </div>
+    <div class="mb-4">
+      <label class="block mb-2 font-semibold">Password</label>
+      <input type="password" name="password" required class="w-full p-2 rounded text-black">
+    </div>
+    <div class="mb-4">
+      <label class="block mb-2 font-semibold">I am a</label>
+      <select name="role" class="w-full p-2 rounded text-black">
+        <option value="student">Student</option>
+        <option value="teacher">Teacher</option>
+      </select>
+    </div>
+    <div class="mb-4">
+      <label class="block mb-2 font-semibold">Registration Code</label>
+      <input type="password" name="secret_code" required class="w-full p-2 rounded text-black">
+      <p class="text-sm mt-1 text-gray-300">Contact your administrator for the registration code</p>
+    </div>
+    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 py-2 px-4 rounded font-bold">
+      Register
+    </button>
+  </form>
+  <p class="mt-4 text-center">Already have an account? <a href="{{ url_for('login') }}" class="text-blue-400">Login</a></p>
+</div>
+{% endblock %}

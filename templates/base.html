@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Edu Image Search</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-900 via-purple-800 to-indigo-900 text-white min-h-screen py-10">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+        {% for message in messages %}
+          <div class="bg-blue-600 px-4 py-2 rounded-lg mb-2 shadow-lg">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="absolute top-4 right-4 flex gap-2">
+    {% if user %}
+      <span class="bg-blue-600 px-3 py-1 rounded-full text-sm">Logged in as {{ user.username }} ({{ user.role }})</span>
+      <a href="{{ url_for('logout') }}" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-full text-sm">Logout</a>
+    {% else %}
+      <a href="{{ url_for('login') }}" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-full text-sm">Login</a>
+      <a href="{{ url_for('register') }}" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-full text-sm">Register</a>
+    {% endif %}
+  </div>
+
+  <!-- Consistent Header Section -->
+  <div class="max-w-4xl mx-auto px-4 text-center mb-8">
+    <h1 class="text-4xl font-bold mb-2">🔬 Edu Image Search</h1>
+    <p class="text-lg">For Grades 5 to 10 - Visualize Educational Concepts</p>
+  </div>
+
+  {% block content %}{% endblock %}
+</body>
+</html>

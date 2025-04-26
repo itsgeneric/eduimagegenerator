@@ -1,137 +1,150 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Science Image Search (Grades 7–10)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-    }
-  </style>
-</head>
-<body class="bg-gradient-to-br from-indigo-900 via-purple-800 to-indigo-900 text-white min-h-screen py-10">
-  <div class="max-w-4xl mx-auto px-4">
-    <h1 class="text-4xl font-bold mb-2 text-center">🔬 Science Image Search</h1>
-    <p class="text-center text-lg mb-6">For Grades 7 to 10 - Visualize Concepts in Physics, Chemistry, and Biology</p>
+{% extends "base.html" %}
 
-    <div class="bg-white bg-opacity-10 p-6 rounded-2xl shadow-xl mb-8">
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
-          <label class="block mb-1 font-semibold">Grade</label>
-          <select id="grade" class="w-full p-2 rounded text-black">
-            <option value="">Select Grade</option>
-            {% for grade in allowed_topics %}
-              <option value="{{ grade }}">{{ grade }}</option>
-            {% endfor %}
-          </select>
-        </div>
+{% block content %}
+<div class="max-w-4xl mx-auto px-4">
+  <h1 class="text-4xl font-bold mb-2 text-center">🔬 Edu Image Search</h1>
+  <p class="text-center text-lg mb-6">For Grades 5 to 10 - Visualize Educational Concepts</p>
 
-        <div>
-          <label class="block mb-1 font-semibold">Subject</label>
-          <select id="subject" onchange="updateKeywords()" class="w-full p-2 rounded text-black">
-            <option value="">Select Subject</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block mb-1 font-semibold">Keyword</label>
-          <input list="keyword-list" id="prompt" class="w-full p-2 rounded text-black" placeholder="Start typing a keyword" />
-          <datalist id="keyword-list"></datalist>
-        </div>
+  <div class="bg-white bg-opacity-10 p-6 rounded-2xl shadow-xl mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div>
+        <label class="block mb-1 font-semibold">Grade</label>
+        <select id="grade" class="w-full p-2 rounded text-black" onchange="updateSubjects()">
+          <option value="">Select Grade</option>
+          {% for grade in allowed_topics %}
+            <option value="{{ grade }}">{{ grade }}</option>
+          {% endfor %}
+        </select>
       </div>
 
-      <button onclick="fetchImage()" class="mt-6 w-auto max-w-xs bg-blue-600 hover:bg-blue-700 transition-all py-2 px-4 rounded-xl font-bold text-white shadow-md block mx-auto">
-        🔍 Get Image
-      </button>
+      <div>
+        <label class="block mb-1 font-semibold">Subject</label>
+        <select id="subject" class="w-full p-2 rounded text-black" onchange="updateKeywords()" disabled>
+          <option value="">Select Subject</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block mb-1 font-semibold">Keyword</label>
+        <select id="keyword" class="w-full p-2 rounded text-black" disabled>
+          <option value="">Select Keyword</option>
+        </select>
+      </div>
     </div>
 
-    <div id="result" class="text-center"></div>
+    <button onclick="fetchImage()" class="mt-6 w-auto max-w-xs bg-blue-600 hover:bg-blue-700 transition-all py-2 px-4 rounded-xl font-bold text-white shadow-md block mx-auto">
+      🔍 Get Image
+    </button>
 
-    <footer class="mt-12 text-center text-sm opacity-60">
-      All images retrieved from Creative Commons sources | Educational use only
-    </footer>
+    {% if user and user.role == 'teacher' %}
+    <div class="mt-6">
+      <p class="text-lg font-semibold mb-2">Teacher Custom Search</p>
+      <div class="flex justify-center gap-2">
+        <input id="customSearch" type="text" placeholder="Enter custom search" class="p-2 rounded text-black w-64" />
+        <button onclick="fetchCustomImage()" class="bg-green-600 hover:bg-green-700 transition-all py-2 px-4 rounded-xl font-bold text-white">
+          🔎 Search
+        </button>
+      </div>
+    </div>
+    {% endif %}
   </div>
+
+  <div id="result" class="text-center"></div>
+</div>
 
 <script>
   const allowedTopics = {{ allowed_topics | tojson | safe }};
-  const subjectSelect = document.getElementById("subject");
 
-  document.getElementById("grade").addEventListener("change", function () {
-    const selectedGrade = this.value;
-    const subjects = allowedTopics[selectedGrade] ? Object.keys(allowedTopics[selectedGrade]) : [];
+  function updateSubjects() {
+    const gradeSelect = document.getElementById("grade");
+    const subjectSelect = document.getElementById("subject");
+    const keywordSelect = document.getElementById("keyword");
 
+    const selectedGrade = gradeSelect.value;
     subjectSelect.innerHTML = '<option value="">Select Subject</option>';
-    subjects.forEach(sub => {
+    keywordSelect.innerHTML = '<option value="">Select Keyword</option>';
+    keywordSelect.disabled = true;
+
+    if (!selectedGrade) {
+      subjectSelect.disabled = true;
+      return;
+    }
+
+    const subjects = allowedTopics[selectedGrade] ? Object.keys(allowedTopics[selectedGrade]) : [];
+    subjectSelect.disabled = false;
+
+    subjects.forEach(subject => {
       const option = document.createElement("option");
-      option.value = sub;
-      option.textContent = sub;
+      option.value = subject;
+      option.textContent = subject;
       subjectSelect.appendChild(option);
     });
-
-    updateKeywords();
-  });
+  }
 
   async function updateKeywords() {
     const grade = document.getElementById("grade").value;
     const subject = document.getElementById("subject").value;
-    const keywordList = document.getElementById("keyword-list");
+    const keywordSelect = document.getElementById("keyword");
+
+    keywordSelect.innerHTML = '<option value="">Select Keyword</option>';
 
     if (!grade || !subject) {
-      keywordList.innerHTML = "";
+      keywordSelect.disabled = true;
       return;
     }
 
     const res = await fetch(`/get_keywords?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}`);
     const data = await res.json();
 
-    keywordList.innerHTML = "";
+    keywordSelect.disabled = false;
     data.keywords.forEach(keyword => {
       const option = document.createElement("option");
       option.value = keyword;
-      keywordList.appendChild(option);
+      option.textContent = keyword;
+      keywordSelect.appendChild(option);
     });
   }
 
   async function fetchImage() {
     const grade = document.getElementById("grade").value;
     const subject = document.getElementById("subject").value;
-    const prompt = document.getElementById("prompt").value.trim();
+    const keyword = document.getElementById("keyword").value;
     const resultDiv = document.getElementById("result");
 
-    if (!grade || !subject || !prompt) {
+    if (!grade || !subject || !keyword) {
       resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>⚠️ Please select all fields before searching.</div>`;
       return;
     }
 
     resultDiv.innerHTML = "<div class='mt-4'>⏳ Searching...</div>";
 
-    const res = await fetch(`/get_image/?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}&prompt=${encodeURIComponent(prompt)}`);
+    const res = await fetch(`/get_image/?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}&prompt=${encodeURIComponent(keyword)}`);
     const data = await res.json();
 
     if (data.image_url) {
+      let customSearchHtml = '';
+      if (data.is_teacher) {
+        customSearchHtml = `
+          <div class="mt-8">
+            <p class="text-lg font-semibold mb-2">🤔 Can't find what you're looking for?</p>
+            <div class="flex justify-center gap-2">
+              <input id="customSearch" type="text" placeholder="Enter custom search" class="p-2 rounded text-black w-64" />
+              <button onclick="fetchCustomImage()" class="bg-green-600 hover:bg-green-700 transition-all py-2 px-4 rounded-xl font-bold text-white">
+                🔎 Search
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
       resultDiv.innerHTML = `
         <h3 class="text-xl font-semibold mt-6 mb-2">🖼️ ${data.title}</h3>
         <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[500px]">
-
-        <div class="mt-8">
-          <p class="text-lg font-semibold mb-2">🤔 Can't find what you're looking for?</p>
-          <div class="flex justify-center gap-2">
-            <input id="customSearch" type="text" placeholder="Enter custom search" class="p-2 rounded text-black w-64" />
-            <button onclick="fetchCustomImage()" class="bg-green-600 hover:bg-green-700 transition-all py-2 px-4 rounded-xl font-bold text-white">
-              🔎 Search
-            </button>
-          </div>
-        </div>
+        ${customSearchHtml}
       `;
     } else {
       resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
     }
-
-    document.getElementById("prompt").value = "";
   }
 
   async function fetchCustomImage() {
@@ -158,5 +171,4 @@
     }
   }
 </script>
-</body>
-</html>
+{% endblock %}
