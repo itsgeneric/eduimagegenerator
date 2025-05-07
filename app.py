@@ -196,7 +196,7 @@ def get_image():
 
         prompt_text = (
             f"Generate 2-3 sentences to describe a grade {grade} {subject} diagram on "
-            f"'{prompt}'. Keep it general and from a student’s point of view."
+            f"'{prompt}'. Keep it general and from a student’s point of view. Let it be in second person and never in first person."
         )
 
         response = client.chat.completions.create(
