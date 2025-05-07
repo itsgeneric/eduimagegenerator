@@ -2,8 +2,8 @@
 
 {% block content %}
   <div class="bg-white bg-opacity-10 p-6 rounded-2xl shadow-xl mb-8">
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div>
+    <div class="max-w-screen-lg mx-auto px-4 flex flex-wrap justify-between gap-4">
+      <div class="flex-1 min-w-[250px]">
         <label class="block mb-1 font-semibold">Grade</label>
         <select id="grade" class="w-full p-2 rounded text-black" onchange="updateSubjects()">
           <option value="">Select Grade</option>
@@ -13,14 +13,14 @@
         </select>
       </div>
 
-      <div>
+      <div class="flex-1 min-w-[250px]">
         <label class="block mb-1 font-semibold">Subject</label>
         <select id="subject" class="w-full p-2 rounded text-black" onchange="updateKeywords()" disabled>
           <option value="">Select Subject</option>
         </select>
       </div>
 
-      <div>
+      <div class="flex-1 min-w-[250px]">
         <label class="block mb-1 font-semibold">Keyword</label>
         <select id="keyword" class="w-full p-2 rounded text-black" disabled>
           <option value="">Select Keyword</option>
@@ -45,8 +45,10 @@
     {% endif %}
   </div>
 
-  <div id="result" class="text-center"></div>
-</div>
+  <div id="result" class="text-center">
+    <div id="imageRowContainer" class="mt-6 flex flex-col md:flex-row gap-6 items-start justify-center"></div>
+    <div id="imageCaption" class="mt-4 text-base text-white bg-black bg-opacity-40 p-3 rounded-lg max-w-2xl mx-auto hidden"></div>
+  </div>
 
 <script>
   const allowedTopics = {{ allowed_topics | tojson | safe }};
@@ -112,59 +114,93 @@
       return;
     }
 
-    resultDiv.innerHTML = "<div class='mt-4'>⏳ Searching...</div>";
+    const imageRow = document.getElementById("imageRowContainer");
+    imageRow.innerHTML = "<div class='mt-4 w-full text-center'>⏳ Searching...</div>";
+    const imageCaption = document.getElementById("imageCaption");
+    imageCaption.classList.add("hidden");
 
     const res = await fetch(`/get_image/?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}&prompt=${encodeURIComponent(keyword)}`);
     const data = await res.json();
 
     if (data.image_url) {
-      let customSearchHtml = '';
-      if (data.is_teacher) {
-        customSearchHtml = `
-          <div class="mt-8">
-            <p class="text-lg font-semibold mb-2">🤔 Can't find what you're looking for?</p>
-            <div class="flex justify-center gap-2">
-              <input id="customSearch" type="text" placeholder="Enter custom search" class="p-2 rounded text-black w-64" />
-              <button onclick="fetchCustomImage()" class="bg-green-600 hover:bg-green-700 transition-all py-2 px-4 rounded-xl font-bold text-white">
-                🔎 Search
-              </button>
-            </div>
-          </div>
-        `;
-      }
+      imageRow.innerHTML = `
+  <div class="flex flex-col md:flex-row justify-center gap-6 w-full">
+    <div id="mainImage" class="bg-black bg-opacity-20 p-4 rounded-lg shadow-md max-w-xl w-full">
+      <h3 class="text-xl font-semibold mb-2">🖼️ ${data.title}</h3>
+      <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[400px]">
+      <button onclick="this.disabled = true; fetchRandomImage();" class="mt-4 bg-yellow-500 hover:bg-yellow-600 transition-all py-2 px-4 rounded-xl font-bold text-white">
+        🔁 Get Another Image
+      </button>
+    </div>
+    <div id="randomImage" class="bg-black bg-opacity-20 p-4 rounded-lg shadow-md hidden max-w-xl w-full"></div>
+  </div>
+`;
 
-      resultDiv.innerHTML = `
-        <h3 class="text-xl font-semibold mt-6 mb-2">🖼️ ${data.title}</h3>
-        <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[500px]">
-        ${customSearchHtml}
-      `;
+      imageCaption.innerHTML = `<span class="font-semibold text-yellow-300">Description:</span> ${data.caption || 'No description available.'}`;
+      imageCaption.classList.remove("hidden");
     } else {
       resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
+    }
+  }
+
+  async function fetchRandomImage() {
+    const grade = document.getElementById("grade").value;
+    const subject = document.getElementById("subject").value;
+    const keyword = document.getElementById("keyword").value;
+
+    const randomImageDiv = document.getElementById("randomImage");
+    const resultDiv = document.getElementById("result");
+
+    if (!grade || !subject || !keyword) {
+      resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>⚠️ Please select all fields before searching.</div>`;
+      return;
+    }
+
+    randomImageDiv.classList.remove("hidden");
+    randomImageDiv.innerHTML = "<div class='mt-4'>🔄 Fetching another image...</div>";
+
+    const res = await fetch(`/get_image_random/?grade=${encodeURIComponent(grade)}&subject=${encodeURIComponent(subject)}&prompt=${encodeURIComponent(keyword)}`);
+    const data = await res.json();
+
+    if (data.image_url) {
+      randomImageDiv.innerHTML = `
+        <h3 class="text-xl font-semibold mb-2">🖼️ ${data.title}</h3>
+        <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[400px]">
+      `;
+    } else {
+      randomImageDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
     }
   }
 
   async function fetchCustomImage() {
-    const customPrompt = document.getElementById("customSearch").value.trim();
-    const resultDiv = document.getElementById("result");
+  const customPrompt = document.getElementById("customSearch").value.trim();
+  const imageRow = document.getElementById("imageRowContainer");
+  const imageCaption = document.getElementById("imageCaption");
 
-    if (!customPrompt) {
-      alert("Please enter a custom search query.");
-      return;
-    }
-
-    resultDiv.innerHTML = "<div class='mt-4'>⏳ Searching custom image...</div>";
-
-    const res = await fetch(`/get_image_custom?query=${encodeURIComponent(customPrompt)}`);
-    const data = await res.json();
-
-    if (data.image_url) {
-      resultDiv.innerHTML = `
-        <h3 class="text-xl font-semibold mt-6 mb-2">🖼️ ${data.title}</h3>
-        <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[500px]">
-      `;
-    } else {
-      resultDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
-    }
+  if (!customPrompt) {
+    alert("Please enter a custom search query.");
+    return;
   }
+
+  imageRow.innerHTML = "<div class='mt-4'>⏳ Searching custom image...</div>";
+  imageCaption.classList.add("hidden");
+
+  const res = await fetch(`/get_image_custom?query=${encodeURIComponent(customPrompt)}`);
+  const data = await res.json();
+
+  if (data.image_url) {
+    imageRow.innerHTML = `
+      <div class="bg-black bg-opacity-20 p-4 rounded-lg shadow-md max-w-xl w-full">
+        <h3 class="text-xl font-semibold mb-2">🖼️ ${data.title}</h3>
+        <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[400px]">
+      </div>
+    `;
+    imageCaption.innerHTML = `<span class="font-semibold text-yellow-300">Description:</span> ${data.caption || 'No description available.'}`;
+    imageCaption.classList.remove("hidden");
+  } else {
+    imageRow.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
+  }
+}
+
 </script>
 {% endblock %}
