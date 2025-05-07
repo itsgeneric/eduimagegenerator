@@ -12,6 +12,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30-minute session timeout
 
 # Database configuration
 DATABASE = 'users.sqlite'
+TOGETHER_API_KEY = os.environ['TOGETHER_API_KEY']
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
@@ -56,7 +57,7 @@ def teacher_required(f):
 with open("topics.json", "r") as f:
     ALLOWED_TOPICS = json.load(f)
 
-SERP_API_KEY = os.environ.get("SERP_API_KEY")
+SERP_API_KEY = os.environ['SERP_API_KEY']
 SERP_ENDPOINT = "https://serpapi.com/search.json"
 
 @app.before_request
@@ -179,33 +180,107 @@ def get_image():
     keywords_normalized = [k.lower() for k in keywords]
 
     if prompt not in keywords_normalized:
-        return jsonify(
-            {"error": "❌ Sorry, not possible. Please enter a valid keyword for the selected grade and subject."})
+        return jsonify({
+            "error": "❌ Sorry, not possible. Please enter a valid keyword for the selected grade and subject."
+        })
 
     search_term = f"{grade} {subject} {prompt} diagram"
-    params = {
-        "q": search_term,
-        "tbm": "isch",
-        "api_key": SERP_API_KEY
-    }
 
+    # 1. Get AI Overview Summary
+    # 1. Get AI Summary using Together AI
+    ai_summary = None
     try:
-        response = requests.get(SERP_ENDPOINT, params = params)
-        response.raise_for_status()
-        data = response.json()
+        import together
 
-        images = data.get("images_results", [])
+        client = together.Together(api_key = TOGETHER_API_KEY)
+
+        prompt_text = (
+            f"Generate 2-3 sentences to describe a grade {grade} {subject} diagram on "
+            f"'{prompt}'. Keep it general and from a student’s point of view."
+        )
+
+        response = client.chat.completions.create(
+            model = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+            messages = [{"role": "user", "content": prompt_text}]
+        )
+        ai_summary = response.choices[0].message.content.strip()
+    except Exception as e:
+        ai_summary = f"❌ Could not fetch summary. ({str(e)})"
+
+    # 2. Get Image
+    try:
+        img_params = {
+            "q": search_term,
+            "tbm": "isch",
+            "api_key": SERP_API_KEY
+        }
+        img_resp = requests.get(SERP_ENDPOINT, params=img_params)
+        img_resp.raise_for_status()
+        img_data = img_resp.json()
+        images = img_data.get("images_results", [])
+
         if images:
             return jsonify({
                 "title": images[0].get("title", "Result"),
                 "image_url": images[0].get("original"),
+                "caption": ai_summary or "No description available.",
                 "is_teacher": session.get('role') == 'teacher'
             })
         else:
             return jsonify({"error": "❌ No image found. Try a different valid keyword."})
+
     except requests.RequestException as e:
         return jsonify({"error": f"❌ API Error: {str(e)}"})
 
+
+@app.route("/get_image_random/")
+@login_required
+def get_image_random():
+    import random
+
+    def fetch_random_image(search_term):
+        """Fetch a random image result from SerpAPI."""
+        try:
+            #start = random.choice([0, 10, 20, 30])  # Skip pages for variety
+            params = {
+                "q": search_term,
+                "tbm": "isch",
+                "api_key": SERP_API_KEY,
+                #"start": start,
+                "num": 10,
+                "safe": "active"
+            }
+            resp = requests.get(SERP_ENDPOINT, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            images = data.get("images_results", [])
+            if not images:
+                return None, None
+            selected = random.choice(images)
+            return selected.get("original"), selected.get("title", search_term)
+        except Exception as e:
+            return None, f"❌ Error: {str(e)}"
+
+    grade = request.args.get("grade", "")
+    subject = request.args.get("subject", "")
+    prompt = request.args.get("prompt", "").strip().lower()
+
+    keywords = ALLOWED_TOPICS.get(grade, {}).get(subject, [])
+    if prompt not in [k.lower() for k in keywords]:
+        return jsonify({
+            "error": "❌ Invalid keyword for selected grade and subject."
+        })
+
+    search_term = f"{subject} {prompt} diagram"
+    image_url, title_or_error = fetch_random_image(search_term)
+
+    if not image_url:
+        return jsonify({"error": title_or_error or "❌ No image found."})
+
+    return jsonify({
+        "title": title_or_error,
+        "image_url": image_url
+    })
 
 @app.route("/get_image_custom")
 @teacher_required
