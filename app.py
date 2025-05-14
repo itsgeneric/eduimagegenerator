@@ -12,7 +12,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30-minute session timeout
 
 # Database configuration
 DATABASE = 'users.sqlite'
-TOGETHER_API_KEY = "tgp_v1_UfhsuuRFetNAKzszRlFNLSSUqjpfv_U4-gDTE86QKqk"
+TOGETHER_API_KEY = os.environ.get('TOGETHER_API_KEY')
 
 
 def get_db_connection():
@@ -61,7 +61,7 @@ def teacher_required(f):
     return decorated_function
 
 
-SERP_API_KEY = "9d4361ee2cc22491aaef7fd18b3c319ef9cfd3e242d28d19c69af4710641293b"
+SERP_API_KEY = os.environ.get('SERP_API_KEY')
 SERP_ENDPOINT = "https://serpapi.com/search.json"
 
 
