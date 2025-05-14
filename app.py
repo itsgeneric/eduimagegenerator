@@ -1,5 +1,5 @@
 import requests
-from flask import Flask, request, jsonify, render_template, redirect, url_for, session, flash
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session, flash, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import json
@@ -12,12 +12,14 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30-minute session timeout
 
 # Database configuration
 DATABASE = 'users.sqlite'
-TOGETHER_API_KEY = os.environ['TOGETHER_API_KEY']
+TOGETHER_API_KEY = "tgp_v1_UfhsuuRFetNAKzszRlFNLSSUqjpfv_U4-gDTE86QKqk"
+
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
+
 
 def init_db():
     with get_db_connection() as conn:
@@ -32,7 +34,9 @@ def init_db():
         ''')
         conn.commit()
 
+
 init_db()
+
 
 # Authentication decorators
 def login_required(f):
@@ -42,7 +46,9 @@ def login_required(f):
             flash('Please log in to access this page', 'warning')
             return redirect(url_for('login', next=request.url))
         return f(*args, **kwargs)
+
     return decorated_function
+
 
 def teacher_required(f):
     @wraps(f)
@@ -51,35 +57,40 @@ def teacher_required(f):
             flash('Teacher access required', 'danger')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
+
     return decorated_function
 
-# Load topics
-with open("topics.json", "r") as f:
-    ALLOWED_TOPICS = json.load(f)
 
-SERP_API_KEY = os.environ['SERP_API_KEY']
+SERP_API_KEY = "9d4361ee2cc22491aaef7fd18b3c319ef9cfd3e242d28d19c69af4710641293b"
 SERP_ENDPOINT = "https://serpapi.com/search.json"
+
 
 @app.before_request
 def before_request():
     session.permanent = True
+
 
 @app.route('/')
 def home():
     if 'user_id' in session:
         return redirect(url_for('index'))
     return redirect(url_for('login'))
-# Auth routes
-@app.route('/register', methods = ['GET', 'POST'])
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(app.root_path),
+        'favicon.ico',
+        mimetype='image/vnd.microsoft.icon'
+    )
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password']
         role = request.form['role']
-        secret_code = request.form['secret_code']  # Changed from 'key' to 'secret_code'
+        secret_code = request.form['secret_code']
 
-        # Hidden validation - codes aren't shown to users
         valid_codes = {
             'teacher': '3000',
             'student': '0000'
@@ -89,7 +100,6 @@ def register():
             flash('Invalid registration code', 'danger')
             return redirect(url_for('register'))
 
-        # Validate username and password
         if not username or len(username) < 4:
             flash('Username must be at least 4 characters', 'danger')
             return redirect(url_for('register'))
@@ -117,7 +127,7 @@ def register():
     return render_template('register.html')
 
 
-@app.route('/login', methods = ['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form['username'].strip()
@@ -153,21 +163,28 @@ def logout():
     flash('You have been logged out', 'info')
     return redirect(url_for('login'))
 
+
 @app.route("/index")
 @login_required
 def index():
+    with open("topics.json", "r") as f:
+        allowed_topics = json.load(f)
     return render_template("index.html",
-                         allowed_topics=ALLOWED_TOPICS,
-                         user={'username': session.get('username'),
-                               'role': session.get('role')})
+                           allowed_topics=allowed_topics,
+                           user={'username': session.get('username'),
+                                 'role': session.get('role')})
+
 
 @app.route("/get_keywords")
 @login_required
 def get_keywords():
     grade = request.args.get("grade")
     subject = request.args.get("subject")
-    keywords = ALLOWED_TOPICS.get(grade, {}).get(subject, [])
+    with open("topics.json", "r") as f:
+        allowed_topics = json.load(f)
+    keywords = allowed_topics.get(grade, {}).get(subject, [])
     return jsonify({"keywords": keywords})
+
 
 @app.route("/get_image/")
 @login_required
@@ -176,7 +193,9 @@ def get_image():
     subject = request.args.get("subject", "")
     prompt = request.args.get("prompt", "").strip().lower()
 
-    keywords = ALLOWED_TOPICS.get(grade, {}).get(subject, [])
+    with open("topics.json", "r") as f:
+        allowed_topics = json.load(f)
+    keywords = allowed_topics.get(grade, {}).get(subject, [])
     keywords_normalized = [k.lower() for k in keywords]
 
     if prompt not in keywords_normalized:
@@ -184,30 +203,33 @@ def get_image():
             "error": "❌ Sorry, not possible. Please enter a valid keyword for the selected grade and subject."
         })
 
-    search_term = f"{grade} {subject} {prompt} diagram"
+    is_teacher_approved_prompt = False
+    if prompt.startswith("teacher approved - "):
+        is_teacher_approved_prompt = True
+        cleaned_prompt = prompt.replace("teacher approved - ", "").strip()
+        search_term = f"{cleaned_prompt} diagram"
+    else:
+        search_term = f"{grade} {subject} {prompt} diagram"
 
-    # 1. Get AI Overview Summary
-    # 1. Get AI Summary using Together AI
     ai_summary = None
     try:
         import together
 
-        client = together.Together(api_key = TOGETHER_API_KEY)
+        client = together.Together(api_key=TOGETHER_API_KEY)
 
         prompt_text = (
             f"Generate 2-3 sentences to describe a grade {grade} {subject} diagram on "
-            f"'{prompt}'. Keep it general and from a student’s point of view. Let it be in second person and never in first person."
+            f"'{prompt}'. Keep it general and from a student’s point of view. Keep it in second person and never use first person."
         )
 
         response = client.chat.completions.create(
-            model = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-            messages = [{"role": "user", "content": prompt_text}]
+            model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+            messages=[{"role": "user", "content": prompt_text}]
         )
         ai_summary = response.choices[0].message.content.strip()
     except Exception as e:
         ai_summary = f"❌ Could not fetch summary. ({str(e)})"
 
-    # 2. Get Image
     try:
         img_params = {
             "q": search_term,
@@ -224,7 +246,8 @@ def get_image():
                 "title": images[0].get("title", "Result"),
                 "image_url": images[0].get("original"),
                 "caption": ai_summary or "No description available.",
-                "is_teacher": session.get('role') == 'teacher'
+                "is_teacher": session.get('role') == 'teacher',
+                "is_teacher_approved_prompt": is_teacher_approved_prompt
             })
         else:
             return jsonify({"error": "❌ No image found. Try a different valid keyword."})
@@ -239,14 +262,11 @@ def get_image_random():
     import random
 
     def fetch_random_image(search_term):
-        """Fetch a random image result from SerpAPI."""
         try:
-            #start = random.choice([0, 10, 20, 30])  # Skip pages for variety
             params = {
                 "q": search_term,
                 "tbm": "isch",
                 "api_key": SERP_API_KEY,
-                #"start": start,
                 "num": 10,
                 "safe": "active"
             }
@@ -265,7 +285,9 @@ def get_image_random():
     subject = request.args.get("subject", "")
     prompt = request.args.get("prompt", "").strip().lower()
 
-    keywords = ALLOWED_TOPICS.get(grade, {}).get(subject, [])
+    with open("topics.json", "r") as f:
+        allowed_topics = json.load(f)
+    keywords = allowed_topics.get(grade, {}).get(subject, [])
     if prompt not in [k.lower() for k in keywords]:
         return jsonify({
             "error": "❌ Invalid keyword for selected grade and subject."
@@ -282,6 +304,7 @@ def get_image_random():
         "image_url": image_url
     })
 
+
 @app.route("/get_image_custom")
 @teacher_required
 def get_image_custom():
@@ -297,7 +320,7 @@ def get_image_custom():
     }
 
     try:
-        response = requests.get(SERP_ENDPOINT, params = params)
+        response = requests.get(SERP_ENDPOINT, params=params)
         response.raise_for_status()
         data = response.json()
 
@@ -313,7 +336,30 @@ def get_image_custom():
         return jsonify({"error": f"❌ API Error: {str(e)}"})
 
 
-# Error handlers
+@app.route('/approve_prompt', methods=['POST'])
+def approve_prompt():
+    data = request.get_json()
+    grade = data.get('grade')
+    subject = data.get('subject')
+    prompt = data.get('prompt')
+
+    if not all([grade, subject, prompt]):
+        return jsonify({'message': 'Missing grade, subject, or prompt'}), 400
+
+    with open('topics.json', 'r') as f:
+        topics = json.load(f)
+
+    if prompt in topics.get(grade, {}).get(subject, []):
+        return jsonify({'message': f'❌ The topic "{prompt}" already exists.'})
+
+    topics.setdefault(grade, {}).setdefault(subject, []).append(f"Teacher Approved - {prompt}")
+
+    with open('topics.json', 'w') as f:
+        json.dump(topics, f, indent=2)
+
+    return jsonify({'message': f'✅ "{prompt}" added successfully to Grade {grade} → {subject}.'})
+
+
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template('404.html'), 404
@@ -325,4 +371,4 @@ def internal_server_error(e):
 
 
 if __name__ == "__main__":
-    app.run(debug = True, host = "0.0.0.0", port = 8000)
+    app.run(debug=True, host="0.0.0.0", port=8000)
