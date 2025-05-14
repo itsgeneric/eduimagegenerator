@@ -123,14 +123,24 @@
     const data = await res.json();
 
     if (data.image_url) {
+      const isApproved = data.is_teacher_approved_prompt === true;
       imageRow.innerHTML = `
   <div class="flex flex-col md:flex-row justify-center gap-6 w-full">
     <div id="mainImage" class="bg-black bg-opacity-20 p-4 rounded-lg shadow-md max-w-xl w-full">
       <h3 class="text-xl font-semibold mb-2">🖼️ ${data.title}</h3>
-      <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[400px]">
-      <button onclick="this.disabled = true; fetchRandomImage();" class="mt-4 bg-yellow-500 hover:bg-yellow-600 transition-all py-2 px-4 rounded-xl font-bold text-white">
-        🔁 Get Another Image
-      </button>
+      <img id="mainFetchedImage" src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[400px]">
+      <div class="mt-4 flex justify-center gap-4">
+        <button
+  id="getAnotherBtn"
+  onclick="this.disabled = true; fetchRandomImage();"
+  class="bg-yellow-500 hover:bg-yellow-600 transition-all py-2 px-4 rounded-xl font-bold text-white"
+  ${isApproved ? 'disabled title="This is a teacher-approved image. No alternate image allowed."' : ''}
+>
+  🔁 Get Another Image
+</button>
+
+        <button onclick="downloadImage('mainFetchedImage')" class="bg-blue-600 hover:bg-blue-700 transition-all py-2 px-4 rounded-xl font-bold text-white">⬇️ Download</button>
+      </div>
     </div>
     <div id="randomImage" class="bg-black bg-opacity-20 p-4 rounded-lg shadow-md hidden max-w-xl w-full"></div>
   </div>
@@ -165,7 +175,10 @@
     if (data.image_url) {
       randomImageDiv.innerHTML = `
         <h3 class="text-xl font-semibold mb-2">🖼️ ${data.title}</h3>
-        <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[400px]">
+        <img id="randomFetchedImage" src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[400px]">
+        <div class="mt-4 text-center">
+          <button onclick="downloadImage('randomFetchedImage')" class="bg-blue-600 hover:bg-blue-700 transition-all py-2 px-4 rounded-xl font-bold text-white">⬇️ Download</button>
+        </div>
       `;
     } else {
       randomImageDiv.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
@@ -173,34 +186,66 @@
   }
 
   async function fetchCustomImage() {
-  const customPrompt = document.getElementById("customSearch").value.trim();
-  const imageRow = document.getElementById("imageRowContainer");
-  const imageCaption = document.getElementById("imageCaption");
+    const customPrompt = document.getElementById("customSearch").value.trim();
+    const imageRow = document.getElementById("imageRowContainer");
+    const imageCaption = document.getElementById("imageCaption");
 
-  if (!customPrompt) {
-    alert("Please enter a custom search query.");
-    return;
+    if (!customPrompt) {
+      alert("Please enter a custom search query.");
+      return;
+    }
+
+    imageRow.innerHTML = "<div class='mt-4'>⏳ Searching custom image...</div>";
+    imageCaption.classList.add("hidden");
+
+    const res = await fetch(`/get_image_custom?query=${encodeURIComponent(customPrompt)}`);
+    const data = await res.json();
+
+    if (data.image_url) {
+      imageRow.innerHTML = `
+  <div class="bg-black bg-opacity-20 p-4 rounded-lg shadow-md max-w-xl w-full">
+    <h3 class="text-xl font-semibold mb-2">🖼️ ${data.title}</h3>
+    <img id="customImage" src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[400px]">
+    <div class="mt-4 flex justify-center gap-4">
+      <button onclick="approveCustomPrompt('${customPrompt}')" class="bg-green-600 hover:bg-green-700 transition-all py-2 px-4 rounded-xl font-bold text-white">✅ Approve</button>
+      <button onclick="downloadImage('customImage')" class="bg-blue-600 hover:bg-blue-700 transition-all py-2 px-4 rounded-xl font-bold text-white">⬇️ Download</button>
+    </div>
+  </div>
+`;
+      imageCaption.innerHTML = `<span class="font-semibold text-yellow-300">Description:</span> ${data.caption || 'No description available.'}`;
+      imageCaption.classList.remove("hidden");
+    } else {
+      imageRow.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
+    }
   }
 
-  imageRow.innerHTML = "<div class='mt-4'>⏳ Searching custom image...</div>";
-  imageCaption.classList.add("hidden");
+  async function approveCustomPrompt(prompt) {
+    const grade = document.getElementById("grade").value;
+    const subject = document.getElementById("subject").value;
 
-  const res = await fetch(`/get_image_custom?query=${encodeURIComponent(customPrompt)}`);
-  const data = await res.json();
+    if (!grade || !subject) {
+      alert("Please select both grade and subject before approving.");
+      return;
+    }
 
-  if (data.image_url) {
-    imageRow.innerHTML = `
-      <div class="bg-black bg-opacity-20 p-4 rounded-lg shadow-md max-w-xl w-full">
-        <h3 class="text-xl font-semibold mb-2">🖼️ ${data.title}</h3>
-        <img src="${data.image_url}" alt="${data.title}" class="mx-auto rounded-lg shadow-lg max-h-[400px]">
-      </div>
-    `;
-    imageCaption.innerHTML = `<span class="font-semibold text-yellow-300">Description:</span> ${data.caption || 'No description available.'}`;
-    imageCaption.classList.remove("hidden");
-  } else {
-    imageRow.innerHTML = `<div class='text-red-400 font-semibold mt-4'>❌ ${data.error}</div>`;
+    const res = await fetch("/approve_prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ grade, subject, prompt })
+    });
+
+    const result = await res.json();
+    alert(result.message || "Something went wrong.");
   }
-}
 
+  function downloadImage(imgId) {
+    const img = document.getElementById(imgId);
+    const link = document.createElement('a');
+    link.href = img.src;
+    link.download = 'image.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 </script>
 {% endblock %}
